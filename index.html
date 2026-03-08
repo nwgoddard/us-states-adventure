@@ -371,68 +371,6 @@ header p { color: #7eb8f7; font-size: 0.95rem; margin-top: 4px; }
 @media (max-width: 500px) {
   .options-grid { grid-template-columns: 1fr; }
 }
-
-/* ── Physical Features ── */
-.lake-shape {
-  fill: rgba(55, 130, 200, 0.52);
-  stroke: rgba(110, 180, 240, 0.65);
-  stroke-width: 0.6px;
-}
-.river-path {
-  fill: none;
-  stroke: rgba(80, 170, 230, 0.72);
-  stroke-width: 1.3px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.lake-label {
-  font-size: 6px;
-  font-weight: 700;
-  fill: rgba(170, 215, 255, 0.88);
-  font-style: italic;
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-  user-select: none;
-}
-.river-label {
-  font-size: 5.5px;
-  fill: rgba(130, 195, 240, 0.82);
-  font-style: italic;
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-  user-select: none;
-}
-.mountain-label {
-  font-size: 6px;
-  font-weight: 700;
-  fill: rgba(225, 205, 160, 0.92);
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-  user-select: none;
-}
-/* Features toggle button */
-.toggle-btn {
-  background: rgba(255,200,80,.1);
-  border: 1.5px solid rgba(255,200,80,.28);
-  color: #ffd88a;
-  border-radius: 50px;
-  padding: 7px 20px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .2s;
-  font-family: inherit;
-}
-.toggle-btn:hover { background: rgba(255,200,80,.22); }
-.toggle-btn.active {
-  background: linear-gradient(135deg, #a07828, #d4a040);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 4px 18px rgba(190,140,20,.45);
-}
 </style>
 </head>
 <body>
@@ -448,7 +386,6 @@ header p { color: #7eb8f7; font-size: 0.95rem; margin-top: 4px; }
     <button class="mode-btn active" data-mode="find"    onclick="setMode('find')">&#128269; Find the State</button>
     <button class="mode-btn"        data-mode="capital" onclick="setMode('capital')">&#127963; Capital Quiz</button>
     <button class="mode-btn"        data-mode="explore" onclick="setMode('explore')">&#127758; Explore &amp; Learn</button>
-    <button class="toggle-btn active" id="feat-btn"     onclick="toggleFeatures()">&#127956; Landmarks</button>
   </div>
 
   <div class="scoreboard">
@@ -557,22 +494,19 @@ Object.entries(STATE_DATA).forEach(([name, d]) => { BY_ABBR[d.abbr] = { name, ..
 // ─────────────────────────────────────────────
 //  Game state
 // ─────────────────────────────────────────────
-let mode           = 'find';
-let queue          = [];
-let current        = null;
-let score          = 0;
-let streak         = 0;
-let lives          = 3;
-let done           = new Set();
-let awaitNext      = false;
-let hintUsed       = false;
-let audioCtx       = null;
-let geoPathFn      = null;
-let projection     = null;
-let featureMap     = {};
-let svgSel         = null;
-let featuresVisible = true;
-let featuresGroup  = null;
+let mode          = 'find';
+let queue         = [];
+let current       = null;   // state name
+let score         = 0;
+let streak        = 0;
+let lives         = 3;
+let done          = new Set();
+let awaitNext     = false;
+let hintUsed      = false;
+let audioCtx      = null;
+let geoPathFn     = null;
+let featureMap    = {};     // name → d3 feature
+let svgSel        = null;
 
 // ─────────────────────────────────────────────
 //  Audio
@@ -653,7 +587,7 @@ async function initMap() {
     return;
   }
 
-  projection = d3.geoAlbersUsa()
+  const projection = d3.geoAlbersUsa()
     .scale(1280)
     .translate([WIDTH / 2, HEIGHT / 2]);
 
@@ -695,9 +629,6 @@ async function initMap() {
     .datum(borders)
     .attr('class', 'state-borders')
     .attr('d', geoPathFn);
-
-  // Physical features (lakes, rivers, mountains) — above borders, below labels
-  addPhysicalFeatures();
 
   // State abbreviation labels
   svgSel.selectAll('.state-label')
@@ -1061,166 +992,6 @@ function shuffle(a) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
-}
-
-// ─────────────────────────────────────────────
-//  Physical Features Data  [lon, lat]
-// ─────────────────────────────────────────────
-const LAKES_DATA = [
-  { name:"Lake Superior",   labelCoord:[-88.5,47.1],
-    coords:[[-92.1,46.8],[-91.0,47.2],[-89.4,47.9],[-87.3,48.1],[-85.7,47.4],[-84.5,46.5],[-84.3,46.2],[-85.5,46.0],[-87.0,45.8],[-88.8,46.0],[-90.5,46.5],[-92.1,46.8]] },
-  { name:"L. Michigan",     labelCoord:[-87.0,43.8],
-    coords:[[-85.1,46.1],[-84.8,45.4],[-85.3,44.5],[-86.2,43.0],[-86.7,42.0],[-87.0,41.7],[-87.5,41.8],[-87.8,42.6],[-87.5,43.8],[-87.0,45.7],[-85.1,46.1]] },
-  { name:"L. Huron",        labelCoord:[-82.6,44.7],
-    coords:[[-84.4,46.5],[-83.4,46.3],[-82.7,45.3],[-82.5,44.5],[-83.5,44.0],[-82.4,43.3],[-82.0,43.0],[-82.6,42.8],[-83.2,42.6],[-83.8,43.3],[-83.5,44.5],[-83.0,45.5],[-83.5,46.0],[-84.4,46.5]] },
-  { name:"L. Erie",         labelCoord:[-81.5,42.3],
-    coords:[[-83.4,42.2],[-82.9,41.8],[-82.4,41.7],[-80.9,42.1],[-80.0,42.4],[-79.2,42.8],[-79.0,42.6],[-80.5,42.0],[-82.0,41.6],[-83.4,41.8],[-83.4,42.2]] },
-  { name:"L. Ontario",      labelCoord:[-77.7,43.7],
-    coords:[[-79.7,43.6],[-78.8,43.3],[-77.5,43.6],[-76.2,43.8],[-75.9,44.1],[-76.5,44.2],[-78.0,43.9],[-79.7,43.6]] },
-  { name:"Gt. Salt Lake",   labelCoord:[-112.5,41.2],
-    coords:[[-112.5,41.5],[-112.0,41.7],[-111.8,41.4],[-112.0,40.9],[-112.6,40.8],[-113.0,41.2],[-112.5,41.5]] }
-];
-
-const RIVERS_DATA = [
-  { name:"Mississippi",  labelCoord:[-91.0,36.2],
-    coords:[[-95.2,47.2],[-93.2,44.9],[-91.2,43.3],[-90.5,42.0],[-90.2,39.5],[-89.3,37.1],[-90.1,35.2],[-90.4,32.3],[-90.3,30.3],[-89.5,29.1]] },
-  { name:"Missouri",     labelCoord:[-103.5,47.8],
-    coords:[[-111.5,45.9],[-111.2,47.0],[-109.5,47.5],[-107.0,48.0],[-104.0,47.5],[-100.8,46.8],[-97.4,42.5],[-95.9,41.3],[-95.5,40.0],[-94.9,39.4],[-94.6,38.9],[-90.4,38.8]] },
-  { name:"Ohio",         labelCoord:[-84.8,39.7],
-    coords:[[-79.9,40.4],[-81.0,40.0],[-84.5,39.1],[-85.8,38.3],[-87.1,37.9],[-88.1,37.5],[-89.1,37.0]] },
-  { name:"Colorado",     labelCoord:[-113.0,36.5],
-    coords:[[-105.7,40.3],[-108.0,39.5],[-110.0,38.0],[-111.0,37.0],[-112.1,36.1],[-114.0,35.5],[-114.7,34.5],[-114.6,32.5]] },
-  { name:"Columbia",     labelCoord:[-120.5,47.5],
-    coords:[[-118.5,48.5],[-119.8,48.0],[-119.5,46.8],[-120.5,46.5],[-121.5,46.3],[-122.7,45.6],[-124.0,46.2]] },
-  { name:"Rio Grande",   labelCoord:[-105.0,30.8],
-    coords:[[-107.0,37.8],[-106.7,35.5],[-106.6,35.1],[-106.5,32.8],[-105.3,31.8],[-104.5,30.3],[-103.0,29.3],[-101.5,29.0],[-99.5,27.5],[-97.2,26.1]] },
-  { name:"Snake",        labelCoord:[-115.5,43.2],
-    coords:[[-111.0,44.5],[-113.0,43.0],[-114.5,42.6],[-116.0,43.0],[-116.5,43.8],[-117.2,44.5],[-118.5,45.8],[-119.0,46.2]] },
-  { name:"Tennessee",    labelCoord:[-87.2,35.5],
-    coords:[[-84.5,35.6],[-85.5,35.3],[-87.5,34.9],[-88.0,35.3],[-88.5,36.5],[-88.5,37.0]] }
-];
-
-const MOUNTAINS_DATA = [
-  { name:"Rocky Mountains", labelCoord:[-106.5,42.2],
-    peaks:[[-105.6,40.5],[-107.5,37.5],[-108.5,44.2],[-110.5,43.5],[-113.5,43.7],[-114.0,46.0],[-112.0,47.2]] },
-  { name:"Sierra Nevada",   labelCoord:[-120.2,37.2],
-    peaks:[[-118.3,36.6],[-119.5,37.8],[-120.2,38.9]] },
-  { name:"Cascade Range",   labelCoord:[-122.0,44.5],
-    peaks:[[-121.7,46.9],[-122.2,45.4],[-121.7,44.3],[-122.2,40.5]] },
-  { name:"Appalachians",    labelCoord:[-80.5,37.8],
-    peaks:[[-71.3,44.3],[-73.2,42.5],[-80.0,38.5],[-83.5,35.5],[-84.0,34.8]] },
-  { name:"Alaska Range",    labelCoord:[-150.5,64.0],
-    peaks:[[-150.5,63.1],[-146.0,63.5]] },
-  { name:"Brooks Range",    labelCoord:[-152.0,68.2],
-    peaks:[[-153.0,67.5],[-145.0,68.0]] },
-  { name:"Black Hills",     labelCoord:[-103.5,44.6],
-    peaks:[[-103.5,44.1]] },
-  { name:"Ozark Plateau",   labelCoord:[-92.8,37.2],
-    peaks:[[-92.5,36.8],[-91.5,36.3]] },
-  { name:"Adirondacks",     labelCoord:[-74.2,44.2],
-    peaks:[[-74.2,44.0]] },
-  { name:"Olympic Mts.",    labelCoord:[-123.7,47.9],
-    peaks:[[-123.5,47.8]] }
-];
-
-// ─────────────────────────────────────────────
-//  Physical Features Rendering
-// ─────────────────────────────────────────────
-function addPhysicalFeatures() {
-  featuresGroup = svgSel.append('g')
-    .attr('id', 'features-layer')
-    .attr('pointer-events', 'none');
-
-  // ── Lakes ──
-  const lakeG = featuresGroup.append('g');
-  LAKES_DATA.forEach(lake => {
-    const pts = lake.coords.map(c => projection(c)).filter(p => p && !isNaN(p[0]));
-    if (pts.length < 3) return;
-    lakeG.append('path')
-      .attr('d', 'M' + pts.map(p => p.join(',')).join('L') + 'Z')
-      .attr('class', 'lake-shape');
-    const lp = projection(lake.labelCoord);
-    if (lp && !isNaN(lp[0]))
-      lakeG.append('text').attr('x', lp[0]).attr('y', lp[1])
-        .attr('class', 'lake-label').text(lake.name);
-  });
-
-  // ── Rivers ──
-  const riverG = featuresGroup.append('g');
-  const lineGen = d3.line().curve(d3.curveCatmullRom.alpha(0.5));
-  RIVERS_DATA.forEach(river => {
-    const pts = river.coords.map(c => projection(c)).filter(p => p && !isNaN(p[0]));
-    if (pts.length < 2) return;
-    riverG.append('path').attr('d', lineGen(pts)).attr('class', 'river-path');
-    const lp = projection(river.labelCoord);
-    if (lp && !isNaN(lp[0]))
-      riverG.append('text').attr('x', lp[0]).attr('y', lp[1])
-        .attr('class', 'river-label').text(river.name + ' R.');
-  });
-
-  // ── Mountains ──
-  const mtG = featuresGroup.append('g');
-
-  // SVG defs for mountain gradients
-  const defs = svgSel.select('defs').empty() ? svgSel.append('defs') : svgSel.select('defs');
-  defs.append('linearGradient').attr('id','mtL').attr('x1','0').attr('y1','0').attr('x2','0').attr('y2','1')
-    .selectAll('stop').data([{o:'0%',c:'#3d5c32'},{o:'100%',c:'#556e47'}]).join('stop')
-    .attr('offset', d=>d.o).attr('stop-color', d=>d.c);
-  defs.append('linearGradient').attr('id','mtR').attr('x1','0').attr('y1','0').attr('x2','0').attr('y2','1')
-    .selectAll('stop').data([{o:'0%',c:'#85a862'},{o:'100%',c:'#5a7e44'}]).join('stop')
-    .attr('offset', d=>d.o).attr('stop-color', d=>d.c);
-
-  MOUNTAINS_DATA.forEach(range => {
-    range.peaks.forEach(coord => {
-      const px = projection(coord);
-      if (!px || isNaN(px[0])) return;
-      drawMountainIcon(mtG, px[0], px[1], 10);
-    });
-    const lp = projection(range.labelCoord);
-    if (lp && !isNaN(lp[0]))
-      mtG.append('text').attr('x', lp[0]).attr('y', lp[1])
-        .attr('class', 'mountain-label').text(range.name);
-  });
-}
-
-function drawMountainIcon(g, cx, cy, s) {
-  // Ground shadow
-  g.append('ellipse')
-    .attr('cx', cx + s*0.08).attr('cy', cy + s*0.32)
-    .attr('rx', s*0.95).attr('ry', s*0.17)
-    .attr('fill', 'rgba(0,0,0,0.22)');
-  // Left (shadow) face
-  g.append('polygon')
-    .attr('points', `${cx},${cy-s} ${cx-s},${cy+s*0.32} ${cx},${cy+s*0.32}`)
-    .attr('fill', 'url(#mtL)');
-  // Right (lit) face
-  g.append('polygon')
-    .attr('points', `${cx},${cy-s} ${cx},${cy+s*0.32} ${cx+s},${cy+s*0.32}`)
-    .attr('fill', 'url(#mtR)');
-  // Ridge line
-  g.append('line')
-    .attr('x1', cx).attr('y1', cy - s)
-    .attr('x2', cx).attr('y2', cy + s*0.32)
-    .attr('stroke', 'rgba(0,0,0,0.1)').attr('stroke-width', 0.4);
-  // Snow cap — left
-  g.append('polygon')
-    .attr('points', `${cx},${cy-s} ${cx-s*0.3},${cy-s*0.52} ${cx},${cy-s*0.52}`)
-    .attr('fill', '#cce8cc');
-  // Snow cap — right
-  g.append('polygon')
-    .attr('points', `${cx},${cy-s} ${cx},${cy-s*0.52} ${cx+s*0.3},${cy-s*0.52}`)
-    .attr('fill', '#f0faf0');
-  // Peak highlight dot
-  g.append('circle')
-    .attr('cx', cx).attr('cy', cy - s + 1)
-    .attr('r', 0.8).attr('fill', '#ffffff').attr('opacity', 0.7);
-}
-
-function toggleFeatures() {
-  featuresVisible = !featuresVisible;
-  d3.select('#features-layer').style('display', featuresVisible ? null : 'none');
-  const btn = document.getElementById('feat-btn');
-  if (btn) btn.classList.toggle('active', featuresVisible);
 }
 
 // ─────────────────────────────────────────────
