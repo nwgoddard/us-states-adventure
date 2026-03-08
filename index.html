@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US States Adventure!</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: radial-gradient(ellipse at top, #0d1b3e 0%, #071023 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 10px 30px;
+  color: #fff;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+header h1 {
+  font-size: clamp(1.6rem, 4vw, 2.5rem);
+  background: linear-gradient(135deg, #ffd700, #ff9500, #ff6b35);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 1px;
+  text-shadow: none;
+  filter: drop-shadow(0 0 18px rgba(255,200,0,0.35));
+}
+header p { color: #7eb8f7; font-size: 0.95rem; margin-top: 4px; }
+
+.card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 16px;
+  width: 100%;
+  max-width: 1020px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+}
+
+/* ── Mode Buttons ── */
+.modes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.mode-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.15);
+  color: #b0d4ff;
+  border-radius: 50px;
+  padding: 7px 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  font-family: inherit;
+}
+.mode-btn:hover { background: rgba(255,255,255,0.15); }
+.mode-btn.active {
+  background: linear-gradient(135deg, #7b5fff, #e040fb);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(180,80,255,0.45);
+}
+
+/* ── Scoreboard ── */
+.scoreboard {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 14px;
+  padding: 10px 6px;
+  margin-bottom: 12px;
+}
+.score-cell { text-align: center; min-width: 65px; }
+.score-cell .lbl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; color: #6899bb; }
+.score-cell .val { font-size: 1.55rem; font-weight: 700; color: #fff; line-height: 1.2; }
+
+/* ── Progress ── */
+.progress-wrap { margin-bottom: 12px; }
+.progress-lbl { font-size: 0.7rem; color: #5588aa; margin-bottom: 4px; }
+.progress-track {
+  height: 8px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00e676, #00bcd4);
+  border-radius: 99px;
+  transition: width .6s ease;
+  box-shadow: 0 0 8px rgba(0,220,120,0.5);
+  width: 0%;
+}
+
+/* ── Question Box ── */
+.question-box {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: linear-gradient(135deg, rgba(123,95,255,.2), rgba(224,64,251,.2));
+  border: 1.5px solid rgba(180,100,255,.35);
+  border-radius: 16px;
+  padding: 12px 20px;
+  font-size: clamp(1rem, 2.5vw, 1.28rem);
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  margin-bottom: 12px;
+}
+.question-box .hl { color: #ffd700; font-size: 1.15em; }
+.hint-btn {
+  background: rgba(255,215,0,.15);
+  border: 1px solid rgba(255,215,0,.35);
+  color: #ffd700;
+  border-radius: 20px;
+  padding: 4px 13px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .2s;
+  white-space: nowrap;
+}
+.hint-btn:hover { background: rgba(255,215,0,.28); }
+
+/* ── Map ── */
+.map-wrap {
+  position: relative;
+  background: linear-gradient(170deg, #0c2544 0%, #071a35 100%);
+  border-radius: 16px;
+  border: 1.5px solid rgba(80,160,255,.25);
+  overflow: hidden;
+  box-shadow: inset 0 0 50px rgba(0,0,0,.5);
+}
+#map-svg { display: block; width: 100%; }
+
+.state-shape {
+  stroke: #0c2544;
+  stroke-width: 0.5px;
+  cursor: pointer;
+  transition: filter .15s;
+}
+.state-shape:hover { filter: brightness(1.55) drop-shadow(0 0 6px rgba(100,200,255,.7)); }
+.state-shape.st-default  { fill: #2e7d52; }
+.state-shape.st-hover    { fill: #1565c0; }
+.state-shape.st-found    { fill: #1b5e20; }
+.state-shape.st-target   { fill: #f9a825; animation: stateGlow 1s ease-in-out infinite alternate; }
+.state-shape.st-correct  { fill: #00c853; animation: stateCorrect .5s ease; }
+.state-shape.st-wrong    { fill: #c62828; animation: stateWrong .55s ease; }
+
+@keyframes stateGlow {
+  from { filter: drop-shadow(0 0 5px #ffd700); }
+  to   { filter: drop-shadow(0 0 16px #ffd700) brightness(1.25); }
+}
+@keyframes stateCorrect {
+  0%   { filter: brightness(1); }
+  50%  { filter: brightness(2.5) drop-shadow(0 0 12px #00ff88); }
+  100% { filter: brightness(1); }
+}
+@keyframes stateWrong {
+  0%,100% { transform: translateX(0); }
+  25%     { transform: translateX(-5px); }
+  75%     { transform: translateX(5px); }
+}
+
+.state-borders {
+  fill: none;
+  stroke: rgba(255,255,255,.18);
+  stroke-width: 0.7px;
+  pointer-events: none;
+}
+.state-label {
+  font-size: 7px;
+  font-weight: 700;
+  fill: rgba(255,255,255,.75);
+  pointer-events: none;
+  user-select: none;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+}
+
+/* ── Capital star markers ── */
+.capital-star {
+  pointer-events: none;
+  user-select: none;
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  fill: #ffd700;
+  filter: drop-shadow(0 0 3px rgba(255,200,0,.9)) drop-shadow(0 0 1px rgba(0,0,0,.8));
+  animation: starPulse 2.5s ease-in-out infinite;
+}
+@keyframes starPulse {
+  0%,100% { filter: drop-shadow(0 0 2px rgba(255,200,0,.7)) drop-shadow(0 0 1px rgba(0,0,0,.8)); }
+  50%     { filter: drop-shadow(0 0 6px rgba(255,220,0,1))  drop-shadow(0 0 1px rgba(0,0,0,.8)); }
+}
+
+/* ── Tooltip ── */
+.tooltip {
+  position: absolute;
+  background: rgba(5,18,40,.96);
+  border: 1px solid rgba(100,180,255,.4);
+  border-radius: 12px;
+  padding: 10px 14px;
+  pointer-events: none;
+  z-index: 50;
+  max-width: 230px;
+  display: none;
+  box-shadow: 0 6px 24px rgba(0,0,0,.6);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.tooltip .tt-name { color: #ffd700; font-weight: 700; font-size: 1em; margin-bottom: 3px; }
+.tooltip .tt-cap  { color: #4fc3f7; }
+.tooltip .tt-fact { color: #9dc8e8; margin-top: 5px; font-size: 0.92em; }
+
+/* ── Capital Options ── */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.opt-btn {
+  background: rgba(255,255,255,.07);
+  border: 1.5px solid rgba(255,255,255,.14);
+  color: #cce8ff;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: clamp(.82rem, 2vw, 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all .18s;
+}
+.opt-btn:hover:not(:disabled) {
+  background: rgba(80,160,255,.2);
+  border-color: rgba(80,160,255,.5);
+  transform: translateY(-2px);
+}
+.opt-btn.opt-correct { background: rgba(0,200,83,.25); border-color: #00e676; color: #00e676; }
+.opt-btn.opt-wrong   { background: rgba(255,23,68,.25);  border-color: #ff1744; color: #ff5c7a; }
+.opt-btn:disabled    { cursor: not-allowed; }
+
+/* ── Fact Box ── */
+.fact-box {
+  display: none;
+  background: linear-gradient(135deg, rgba(0,188,140,.12), rgba(0,120,200,.12));
+  border: 1.5px solid rgba(0,220,160,.3);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-top: 12px;
+  animation: slideUp .4s ease;
+}
+@keyframes slideUp {
+  from { opacity:0; transform: translateY(10px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.fact-box .fb-header   { color: #ffd700; font-weight: 700; font-size: .92rem; margin-bottom: 6px; }
+.fact-box .fb-name     { color: #4fc3f7; font-size: 1.1rem; font-weight: 700; margin-bottom: 3px; }
+.fact-box .fb-capital  { color: #a5d6f7; font-size: .92rem; margin-bottom: 10px; }
+.fact-box .fb-fact     { color: #c8e6ff; font-size: .9rem; line-height: 1.6; margin-bottom: 12px; }
+.next-btn {
+  background: linear-gradient(135deg, #00b96b, #00e676);
+  color: #001a0e;
+  border: none;
+  border-radius: 50px;
+  padding: 10px 28px;
+  font-size: .98rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform .18s, box-shadow .18s;
+  box-shadow: 0 4px 16px rgba(0,200,80,.4);
+}
+.next-btn:hover { transform: scale(1.05); box-shadow: 0 6px 22px rgba(0,200,80,.6); }
+
+/* ── Game Over ── */
+.gameover {
+  display: none;
+  text-align: center;
+  padding: 30px 16px;
+}
+.gameover h2 { font-size: 2rem; color: #ffd700; margin-bottom: 12px; filter: drop-shadow(0 0 16px rgba(255,215,0,.6)); }
+.gameover p  { color: #9dc8e8; font-size: 1.05rem; line-height: 1.9; margin-bottom: 22px; }
+
+/* ── Confetti ── */
+.confetti {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  border-radius: 3px;
+  animation: confFall linear forwards;
+}
+@keyframes confFall {
+  0%   { transform: translateY(-40px) rotate(0deg) scale(1); opacity:1; }
+  85%  { opacity:1; }
+  100% { transform: translateY(105vh) rotate(800deg) scale(.4); opacity:0; }
+}
+
+/* ── Flash overlay ── */
+.flash {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 9998;
+  animation: flashOut .45s ease forwards;
+}
+@keyframes flashOut { from { opacity:.45; } to { opacity:0; } }
+
+/* ── Streak badge ── */
+.streak-badge {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  background: linear-gradient(135deg, #ffd700, #ff9500);
+  color: #1a0800;
+  font-size: 1.7rem; font-weight: 800;
+  padding: 18px 38px;
+  border-radius: 20px;
+  z-index: 9997;
+  pointer-events: none;
+  text-align: center;
+  box-shadow: 0 0 50px rgba(255,200,0,.7);
+  animation: badgePop 1.6s ease forwards;
+}
+@keyframes badgePop {
+  0%   { transform: translate(-50%,-50%) scale(.2); opacity:0; }
+  20%  { transform: translate(-50%,-50%) scale(1.15); opacity:1; }
+  40%  { transform: translate(-50%,-50%) scale(1); }
+  75%  { opacity:1; }
+  100% { transform: translate(-50%,-50%) scale(1.05); opacity:0; }
+}
+
+/* ── Loading ── */
+#loading {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(7,16,35,.9);
+  border-radius: 16px;
+  z-index: 10;
+  font-size: 1.1rem; color: #7eb8f7;
+  flex-direction: column; gap: 14px;
+}
+.spinner {
+  width: 40px; height: 40px;
+  border: 4px solid rgba(100,180,255,.2);
+  border-top-color: #4fc3f7;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 500px) {
+  .options-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#127758; US States Adventure!</h1>
+  <p>Learn all 50 states and their capitals!</p>
+</header>
+
+<div class="card">
+
+  <div class="modes">
+    <button class="mode-btn active" data-mode="find"    onclick="setMode('find')">&#128269; Find the State</button>
+    <button class="mode-btn"        data-mode="capital" onclick="setMode('capital')">&#127963; Capital Quiz</button>
+    <button class="mode-btn"        data-mode="explore" onclick="setMode('explore')">&#127758; Explore &amp; Learn</button>
+  </div>
+
+  <div class="scoreboard">
+    <div class="score-cell"><div class="lbl">Score</div><div class="val" id="el-score">0</div></div>
+    <div class="score-cell"><div class="lbl">Streak</div><div class="val" id="el-streak">0</div></div>
+    <div class="score-cell"><div class="lbl">Lives</div><div class="val" id="el-lives">&#10084;&#10084;&#10084;</div></div>
+    <div class="score-cell"><div class="lbl">Done</div><div class="val" id="el-done">0/50</div></div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-lbl" id="el-pct">Progress: 0%</div>
+    <div class="progress-track"><div class="progress-fill" id="el-fill"></div></div>
+  </div>
+
+  <div class="question-box" id="el-question">Loading the map&hellip;</div>
+
+  <div class="map-wrap" id="map-wrap">
+    <div id="loading"><div class="spinner"></div>Loading accurate map data&hellip;</div>
+    <svg id="map-svg" viewBox="0 0 975 610"></svg>
+    <div class="tooltip" id="tooltip">
+      <div class="tt-name" id="tt-name"></div>
+      <div class="tt-cap"  id="tt-cap"></div>
+      <div class="tt-fact" id="tt-fact"></div>
+    </div>
+  </div>
+
+  <div id="el-options"></div>
+
+  <div class="fact-box" id="el-fact">
+    <div class="fb-header">&#127775; Fun Fact!</div>
+    <div class="fb-name"    id="fb-name"></div>
+    <div class="fb-capital" id="fb-cap"></div>
+    <div class="fb-fact"    id="fb-fact"></div>
+    <button class="next-btn" id="el-next" onclick="nextQuestion()">Next State &#8594;</button>
+  </div>
+
+  <div class="gameover" id="el-gameover">
+    <h2>&#127881; Game Over!</h2>
+    <p id="el-final"></p>
+    <button class="next-btn" onclick="restart()">Play Again &#8635;</button>
+  </div>
+
+</div><!-- .card -->
+
+<script>
+// ─────────────────────────────────────────────
+//  State data: capitals + fun facts
+// ─────────────────────────────────────────────
+const STATE_DATA = {
+  Alabama:         { abbr:"AL", capital:"Montgomery",     capitalCoords:[-86.2792, 32.3617], fact:"Alabama has more species of freshwater fish than any other state — over 300! It's truly a fish paradise. &#128031;" },
+  Alaska:          { abbr:"AK", capital:"Juneau",         capitalCoords:[-134.4197,58.3005], fact:"Alaska is so vast it would cover 1/5 of the lower 48 states, and has more coastline than ALL other US states combined! &#127956;" },
+  Arizona:         { abbr:"AZ", capital:"Phoenix",        capitalCoords:[-112.0740,33.4484], fact:"The Grand Canyon in Arizona is 277 miles long and over a MILE deep — it took millions of years to carve! &#127994;" },
+  Arkansas:        { abbr:"AR", capital:"Little Rock",    capitalCoords:[-92.2896, 34.7465], fact:"Arkansas has the ONLY public diamond-mining park in the world. You dig — and get to KEEP what you find! &#128142;" },
+  California:      { abbr:"CA", capital:"Sacramento",     capitalCoords:[-121.4944,38.5816], fact:"California has both the world's TALLEST trees (redwoods, up to 380 ft!) and the world's OLDEST trees (over 5,000 years old)! &#127795;" },
+  Colorado:        { abbr:"CO", capital:"Denver",         capitalCoords:[-104.9903,39.7392], fact:"Colorado has 53 mountain peaks above 14,000 feet — called 'Fourteeners'. Climbers love collecting them all! &#9975;" },
+  Connecticut:     { abbr:"CT", capital:"Hartford",       capitalCoords:[-72.6851, 41.7658], fact:"The hamburger was invented in New Haven, Connecticut in 1900. Connecticut also published the very first phone book! &#127828;" },
+  Delaware:        { abbr:"DE", capital:"Dover",          capitalCoords:[-75.5244, 39.1582], fact:"Delaware was the VERY FIRST state — it ratified the US Constitution on December 7, 1787. That's why it's called 'The First State'! &#127775;" },
+  Florida:         { abbr:"FL", capital:"Tallahassee",    capitalCoords:[-84.2807, 30.4383], fact:"Florida gets more lightning strikes than any other state and is nicknamed the 'Lightning Capital of North America'! &#9889;" },
+  Georgia:         { abbr:"GA", capital:"Atlanta",        capitalCoords:[-84.3880, 33.7490], fact:"Georgia grows about 130 million pounds of peanuts every year! President Jimmy Carter was actually a peanut farmer from Georgia. &#129386;" },
+  Hawaii:          { abbr:"HI", capital:"Honolulu",       capitalCoords:[-157.8583,21.3069], fact:"Hawaii is the only US state made entirely of islands — and the only state that grows coffee! It's also drifting toward Japan by about 3 inches a year. &#127954;" },
+  Idaho:           { abbr:"ID", capital:"Boise",          capitalCoords:[-116.2023,43.6150], fact:"Idaho grows about 13 BILLION pounds of potatoes per year — more than any other state. That's a mountain of french fries! &#129364;" },
+  Illinois:        { abbr:"IL", capital:"Springfield",    capitalCoords:[-89.6501, 39.7817], fact:"Abraham Lincoln lived in Springfield, Illinois before becoming president. Fun bonus: the zipper was invented in Illinois! &#127917;" },
+  Indiana:         { abbr:"IN", capital:"Indianapolis",   capitalCoords:[-86.1581, 39.7684], fact:"The Indianapolis 500 is one of the most famous car races on Earth! Indiana is nicknamed the 'Crossroads of America'. &#127944;" },
+  Iowa:            { abbr:"IA", capital:"Des Moines",     capitalCoords:[-93.6250, 41.5868], fact:"Iowa produces about 10% of ALL the food eaten in the United States. Some call it the 'Food Capital of the World'! &#127807;" },
+  Kansas:          { abbr:"KS", capital:"Topeka",         capitalCoords:[-95.6752, 39.0473], fact:"Kansas produces enough wheat every year to bake 36 BILLION loaves of bread — enough to feed every single person on Earth! &#127838;" },
+  Kentucky:        { abbr:"KY", capital:"Frankfort",      capitalCoords:[-84.8733, 38.2009], fact:"Kentucky is famous for its stunning horses. The Kentucky Derby — the most famous horse race in the world — is held there every May. &#128014;" },
+  Louisiana:       { abbr:"LA", capital:"Baton Rouge",    capitalCoords:[-91.1871, 30.4515], fact:"Louisiana hosts the biggest Mardi Gras party in the US! New Orleans is the worldwide birthplace of jazz music. &#127930;" },
+  Maine:           { abbr:"ME", capital:"Augusta",        capitalCoords:[-69.7795, 44.3106], fact:"Maine harvests about 90% of all lobsters caught in the United States — and it's the only one-syllable US state name! &#129438;" },
+  Maryland:        { abbr:"MD", capital:"Annapolis",      capitalCoords:[-76.4922, 38.9784], fact:"The first US railroad station was built in Baltimore, Maryland in 1830. Maryland is also beloved for its blue crabs! &#128057;" },
+  Massachusetts:   { abbr:"MA", capital:"Boston",         capitalCoords:[-71.0589, 42.3601], fact:"Basketball was invented by Dr. James Naismith in Springfield, Massachusetts in 1891. America's first public school was there too! &#127936;" },
+  Michigan:        { abbr:"MI", capital:"Lansing",        capitalCoords:[-84.5555, 42.7325], fact:"Michigan touches FOUR of the five Great Lakes and has more freshwater coastline than any other state in the world! &#127754;" },
+  Minnesota:       { abbr:"MN", capital:"Saint Paul",     capitalCoords:[-93.0900, 44.9537], fact:"Minnesota's license plates say '10,000 Lakes' — but it actually has over 11,842 lakes! It's truly the land of lakes. &#128060;" },
+  Mississippi:     { abbr:"MS", capital:"Jackson",        capitalCoords:[-90.1848, 32.2988], fact:"The teddy bear was named after President Theodore 'Teddy' Roosevelt following a hunting trip he took in Mississippi! &#129528;" },
+  Missouri:        { abbr:"MO", capital:"Jefferson City", capitalCoords:[-92.1735, 38.5767], fact:"The Gateway Arch in St. Louis is the TALLEST arch in the world at 630 feet! Missouri is near the geographic center of the US. &#127961;" },
+  Montana:         { abbr:"MT", capital:"Helena",         capitalCoords:[-112.0270,46.5958], fact:"Montana has three times MORE cattle than people! Glacier National Park there contains over 700 sparkling lakes. &#128004;" },
+  Nebraska:        { abbr:"NE", capital:"Lincoln",        capitalCoords:[-96.7026, 40.8136], fact:"Nebraska is the ONLY state with a unicameral (one-house) legislature — a unique experiment in democracy! &#128220;" },
+  Nevada:          { abbr:"NV", capital:"Carson City",    capitalCoords:[-119.7674,39.1638], fact:"Nevada gets less rain than any other state, yet has the most hotel rooms in the entire US. What a desert surprise! &#127981;" },
+  "New Hampshire": { abbr:"NH", capital:"Concord",        capitalCoords:[-71.5376, 43.2081], fact:"New Hampshire declared independence from Britain SIX MONTHS before the Declaration of Independence. Live Free or Die! &#128985;" },
+  "New Jersey":    { abbr:"NJ", capital:"Trenton",        capitalCoords:[-74.7429, 40.2171], fact:"Thomas Edison invented the light bulb in Menlo Park, New Jersey. New Jersey also has more diners than any country in the world! &#128161;" },
+  "New Mexico":    { abbr:"NM", capital:"Santa Fe",       capitalCoords:[-105.9378,35.6870], fact:"Santa Fe, New Mexico is the OLDEST state capital in the US — founded in 1610, over 400 years ago! &#127895;" },
+  "New York":      { abbr:"NY", capital:"Albany",         capitalCoords:[-73.7562, 42.6526], fact:"New York City was the very first capital of the United States! The Statue of Liberty stands over 305 feet tall — a gift from France! &#128505;" },
+  "North Carolina":{ abbr:"NC", capital:"Raleigh",        capitalCoords:[-78.6382, 35.7796], fact:"The Wright Brothers made the world's FIRST successful airplane flight at Kitty Hawk, North Carolina on December 17, 1903! &#9992;" },
+  "North Dakota":  { abbr:"ND", capital:"Bismarck",       capitalCoords:[-100.7837,46.8083], fact:"North Dakota grows more sunflowers than any other state. It's also home to the geographic center of all of North America! &#127803;" },
+  Ohio:            { abbr:"OH", capital:"Columbus",       capitalCoords:[-82.9988, 39.9612], fact:"Ohio has produced more US presidents than any other state — 8 in total! Astronaut John Glenn, first American to orbit Earth, was from Ohio. &#128640;" },
+  Oklahoma:        { abbr:"OK", capital:"Oklahoma City",  capitalCoords:[-97.5164, 35.4676], fact:"Oklahoma has more man-made lakes than any other state! The grocery shopping cart was invented in Oklahoma City in 1937. &#128722;" },
+  Oregon:          { abbr:"OR", capital:"Salem",          capitalCoords:[-123.0351,44.9429], fact:"Crater Lake in Oregon is the deepest lake in the US at 1,943 feet. It formed after a massive volcanic eruption 7,700 years ago! &#127756;" },
+  Pennsylvania:    { abbr:"PA", capital:"Harrisburg",     capitalCoords:[-76.8867, 40.2732], fact:"Philadelphia, Pennsylvania was the first capital of the US. That's where you'll find the Liberty Bell and the Declaration of Independence! &#128276;" },
+  "Rhode Island":  { abbr:"RI", capital:"Providence",     capitalCoords:[-71.4128, 41.8240], fact:"Rhode Island is the smallest state but carries the longest official name ever: 'State of Rhode Island and Providence Plantations'! &#128220;" },
+  "South Carolina":{ abbr:"SC", capital:"Columbia",       capitalCoords:[-81.0348, 34.0007], fact:"The first shots of the Civil War were fired at Fort Sumter in Charleston, South Carolina in April 1861. &#127963;" },
+  "South Dakota":  { abbr:"SD", capital:"Pierre",         capitalCoords:[-100.3510,44.3683], fact:"Mount Rushmore in South Dakota has four presidential faces carved into a mountain — each face stands about 60 feet tall! &#9968;" },
+  Tennessee:       { abbr:"TN", capital:"Nashville",      capitalCoords:[-86.7816, 36.1627], fact:"Nashville has more recording studios than any other city on Earth — it's truly the Music City! Elvis Presley is from Memphis. &#127928;" },
+  Texas:           { abbr:"TX", capital:"Austin",         capitalCoords:[-97.7431, 30.2672], fact:"Texas is SO big it's larger than any country in Western Europe. You could fit 10 New Yorks inside it. Everything really is bigger in Texas! &#129312;" },
+  Utah:            { abbr:"UT", capital:"Salt Lake City", capitalCoords:[-111.8910,40.7608], fact:"Utah has FIVE national parks — known as the 'Mighty 5'. The Great Salt Lake is so salty you float without even trying! &#127996;" },
+  Vermont:         { abbr:"VT", capital:"Montpelier",     capitalCoords:[-72.5754, 44.2601], fact:"Vermont makes more maple syrup than any other state! Montpelier is the smallest US state capital and has no McDonald's! &#127809;" },
+  Virginia:        { abbr:"VA", capital:"Richmond",       capitalCoords:[-77.4360, 37.5407], fact:"Eight US presidents were born in Virginia — more than any other state. That's why it's called the 'Mother of Presidents'! &#127774;" },
+  Washington:      { abbr:"WA", capital:"Olympia",        capitalCoords:[-122.9007,47.0379], fact:"Washington grows more apples than any other state! Mount Rainier near Seattle is a potentially active volcano. &#127822;" },
+  "West Virginia": { abbr:"WV", capital:"Charleston",     capitalCoords:[-81.6326, 38.3498], fact:"West Virginia is the only state formed DURING the Civil War, breaking away from Virginia in 1863. It sits entirely in the Appalachian Mountains! &#9968;" },
+  Wisconsin:       { abbr:"WI", capital:"Madison",        capitalCoords:[-89.4012, 43.0731], fact:"Wisconsin makes over 2.8 BILLION pounds of cheese per year — more than any other state. No wonder it's called 'America's Dairyland'! &#129472;" },
+  Wyoming:         { abbr:"WY", capital:"Cheyenne",       capitalCoords:[-104.8202,41.1400], fact:"Wyoming was the FIRST state to give women the right to vote in 1869. Yellowstone — the world's first national park — is also in Wyoming! &#127755;" }
+};
+
+// Build a lookup by abbreviation too
+const BY_ABBR = {};
+Object.entries(STATE_DATA).forEach(([name, d]) => { BY_ABBR[d.abbr] = { name, ...d }; });
+
+// ─────────────────────────────────────────────
+//  Game state
+// ─────────────────────────────────────────────
+let mode          = 'find';
+let queue         = [];
+let current       = null;   // state name
+let score         = 0;
+let streak        = 0;
+let lives         = 3;
+let done          = new Set();
+let awaitNext     = false;
+let hintUsed      = false;
+let audioCtx      = null;
+let geoPathFn     = null;
+let featureMap    = {};     // name → d3 feature
+let svgSel        = null;
+
+// ─────────────────────────────────────────────
+//  Audio
+// ─────────────────────────────────────────────
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function beep(freq, dur, wave='sine', vol=0.25) {
+  try {
+    const c = getCtx(), o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.frequency.value = freq; o.type = wave;
+    g.gain.setValueAtTime(vol, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    o.start(c.currentTime); o.stop(c.currentTime + dur);
+  } catch(e){}
+}
+function sfxCorrect() { beep(523,.08); setTimeout(()=>beep(659,.08),90); setTimeout(()=>beep(784,.18),180); }
+function sfxWrong()   { beep(200,.35,'sawtooth',.2); }
+function sfxStreak()  { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.14),i*80)); }
+
+// ─────────────────────────────────────────────
+//  Map rendering via D3 + TopoJSON
+// ─────────────────────────────────────────────
+const WIDTH  = 975;
+const HEIGHT = 610;
+
+// Colour palette for states (pastel, distinct neighbours)
+// Assigned by geographic region group so adjacent states look different
+const STATE_COLORS = {
+  // Pacific
+  Washington:'#3a7ebf', Oregon:'#2e8b57', California:'#4682b4',
+  // Mountain
+  Idaho:'#5d8a5e', Montana:'#4878a0', Wyoming:'#6b8e6b',
+  Nevada:'#7a6a8a', Utah:'#5e7ea8', Colorado:'#4d8b6e',
+  Arizona:'#8a6a4e', "New Mexico":'#7a8a5a',
+  // Plains
+  "North Dakota":'#5878a8', "South Dakota":'#4a7858', Nebraska:'#6888a0',
+  Kansas:'#5a8878', Oklahoma:'#8a7a5a', Texas:'#6a5a8a',
+  // Midwest
+  Minnesota:'#4a7888', Iowa:'#5a8866', Missouri:'#7a6888',
+  Wisconsin:'#4e7e90', Michigan:'#5e7aaa', Illinois:'#6a8870',
+  Indiana:'#8a7868', Ohio:'#5e88a0',
+  // South
+  Louisiana:'#7a8a5a', Arkansas:'#5e7868', Mississippi:'#6a8860',
+  Alabama:'#7868a0', Tennessee:'#5e7898', Kentucky:'#7a8860',
+  Georgia:'#8a7060', Florida:'#5a8888',
+  // Mid-Atlantic / Southeast
+  "South Carolina":'#8a6060', "North Carolina":'#6a7888',
+  Virginia:'#7888a0', "West Virginia":'#5e7868',
+  Maryland:'#8a7878', Delaware:'#7888b0',
+  Pennsylvania:'#6a8888', "New Jersey":'#8a8868',
+  "New York":'#5878a8',
+  // New England
+  Connecticut:'#887868', "Rhode Island":'#6a88b8',
+  Massachusetts:'#7a6888', Vermont:'#5e7e5e',
+  "New Hampshire":'#6a8878', Maine:'#5870a8',
+  // Non-contiguous
+  Alaska:'#4a7a8a', Hawaii:'#8a5a70'
+};
+
+function stateColor(name) {
+  return STATE_COLORS[name] || '#4a7a5a';
+}
+
+async function initMap() {
+  svgSel = d3.select('#map-svg')
+    .attr('viewBox', `0 0 ${WIDTH} ${HEIGHT}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet');
+
+  let us;
+  try {
+    us = await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
+  } catch(e) {
+    document.getElementById('loading').innerHTML =
+      '<span style="color:#ff6b6b">&#9888; Could not load map data.<br>Check your internet connection.</span>';
+    return;
+  }
+
+  const projection = d3.geoAlbersUsa()
+    .scale(1280)
+    .translate([WIDTH / 2, HEIGHT / 2]);
+
+  geoPathFn = d3.geoPath().projection(projection);
+
+  const features  = topojson.feature(us, us.objects.states).features;
+  const borders   = topojson.mesh(us, us.objects.states, (a, b) => a !== b);
+  const outline   = topojson.merge(us, us.objects.states.geometries);
+
+  // Build feature map: name → feature
+  features.forEach(f => {
+    const name = f.properties.name;
+    if (STATE_DATA[name]) featureMap[name] = f;
+  });
+
+  // Ocean-ish background
+  svgSel.append('path')
+    .datum(outline)
+    .attr('d', geoPathFn)
+    .attr('fill', 'none')
+    .attr('stroke', 'rgba(100,180,255,.15)')
+    .attr('stroke-width', 1.5);
+
+  // State fills
+  svgSel.selectAll('.state-shape')
+    .data(features)
+    .join('path')
+      .attr('class', 'state-shape st-default')
+      .attr('id',    d => 'st-' + d.properties.name.replace(/\s+/g,'_'))
+      .attr('d',     geoPathFn)
+      .attr('fill',  d => stateColor(d.properties.name))
+      .on('click',      (e, d) => onMapClick(d.properties.name))
+      .on('mouseenter', (e, d) => onHover(d.properties.name, e))
+      .on('mousemove',  (e)    => moveTooltip(e))
+      .on('mouseleave', ()     => hideTooltip());
+
+  // State borders (drawn on top for crisp lines)
+  svgSel.append('path')
+    .datum(borders)
+    .attr('class', 'state-borders')
+    .attr('d', geoPathFn);
+
+  // State abbreviation labels
+  svgSel.selectAll('.state-label')
+    .data(features.filter(f => STATE_DATA[f.properties.name]))
+    .join('text')
+      .attr('class', 'state-label')
+      .attr('transform', d => {
+        const c = geoPathFn.centroid(d);
+        return isNaN(c[0]) ? 'translate(-999,-999)' : `translate(${c})`;
+      })
+      .text(d => STATE_DATA[d.properties.name]?.abbr || '');
+
+  // Capital star markers — project each capital's real lat/lon onto the map
+  const capitalData = Object.entries(STATE_DATA)
+    .map(([name, d]) => ({ name, capital: d.capital, coords: d.capitalCoords }))
+    .filter(d => {
+      const px = projection(d.coords);
+      return px !== null; // geoAlbersUsa returns null if outside projection area
+    });
+
+  // Outer glow ring
+  svgSel.selectAll('.capital-glow')
+    .data(capitalData)
+    .join('circle')
+      .attr('class', 'capital-glow')
+      .attr('cx', d => projection(d.coords)[0])
+      .attr('cy', d => projection(d.coords)[1])
+      .attr('r', 5)
+      .attr('fill', 'none')
+      .attr('stroke', 'rgba(255,215,0,.35)')
+      .attr('stroke-width', 1.5)
+      .attr('pointer-events', 'none');
+
+  // Star ★ character at each capital
+  svgSel.selectAll('.capital-star')
+    .data(capitalData)
+    .join('text')
+      .attr('class', 'capital-star')
+      .attr('x', d => projection(d.coords)[0])
+      .attr('y', d => projection(d.coords)[1])
+      .attr('data-state', d => d.name)
+      .text('★');
+
+  // Remove loading overlay
+  document.getElementById('loading').style.display = 'none';
+
+  // Start game
+  resetGame();
+  nextQuestion();
+}
+
+// ─────────────────────────────────────────────
+//  Tooltip
+// ─────────────────────────────────────────────
+function onHover(name, e) {
+  if (mode !== 'explore') return;
+  const d = STATE_DATA[name];
+  if (!d) return;
+  document.getElementById('tt-name').textContent = name;
+  document.getElementById('tt-cap').textContent  = '🏛 Capital: ' + d.capital;
+  document.getElementById('tt-fact').innerHTML   = d.fact;
+  const tt = document.getElementById('tooltip');
+  tt.style.display = 'block';
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const tt   = document.getElementById('tooltip');
+  const wrap = document.getElementById('map-wrap');
+  const rect = wrap.getBoundingClientRect();
+  let x = e.clientX - rect.left + 14;
+  let y = e.clientY - rect.top  + 14;
+  if (x + 240 > rect.width)  x = e.clientX - rect.left - 245;
+  if (y + 160 > rect.height) y = e.clientY - rect.top  - 165;
+  tt.style.left = Math.max(0, x) + 'px';
+  tt.style.top  = Math.max(0, y) + 'px';
+}
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────
+//  State shape helpers
+// ─────────────────────────────────────────────
+function stateEl(name) {
+  return document.getElementById('st-' + name.replace(/\s+/g,'_'));
+}
+function setStateClass(name, cls) {
+  const el = stateEl(name);
+  if (!el) return;
+  el.classList.remove('st-default','st-found','st-target','st-correct','st-wrong');
+  el.classList.add(cls);
+}
+function resetStateClass(name) {
+  const el = stateEl(name);
+  if (!el) return;
+  el.classList.remove('st-default','st-found','st-target','st-correct','st-wrong');
+  el.classList.add(done.has(name) ? 'st-found' : 'st-default');
+}
+
+// ─────────────────────────────────────────────
+//  Mode switching
+// ─────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === m);
+  });
+  if (m === 'explore') {
+    resetGameVisuals();
+    setQ('&#127758; Hover or click any state to explore facts!');
+    document.getElementById('el-options').innerHTML = '';
+    document.getElementById('el-fact').style.display = 'none';
+    document.getElementById('el-gameover').style.display = 'none';
+  } else {
+    resetGame();
+    nextQuestion();
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Game flow
+// ─────────────────────────────────────────────
+function resetGame() {
+  score = 0; streak = 0; lives = 3;
+  done.clear(); awaitNext = false; hintUsed = false;
+  queue = shuffle(Object.keys(STATE_DATA));
+  updateHUD();
+  resetGameVisuals();
+  document.getElementById('el-options').innerHTML  = '';
+  document.getElementById('el-fact').style.display = 'none';
+  document.getElementById('el-gameover').style.display = 'none';
+}
+function resetGameVisuals() {
+  Object.keys(STATE_DATA).forEach(name => resetStateClass(name));
+}
+
+function nextQuestion() {
+  awaitNext = false; hintUsed = false;
+  document.getElementById('el-fact').style.display = 'none';
+  document.getElementById('el-options').innerHTML  = '';
+  // clear any target/correct highlights
+  if (current) resetStateClass(current);
+
+  if (!queue.length) { endGame(); return; }
+  current = queue.shift();
+
+  if (mode === 'find') {
+    setQ('&#128269; Find <span class="hl">' + current + '</span> on the map!',
+         '<button class="hint-btn" onclick="giveHint()">&#128161; Hint</button>');
+  } else if (mode === 'capital') {
+    setQ('&#127963; What is the capital of <span class="hl">' + current + '</span>?');
+    buildOptions();
+  }
+  updateHUD();
+}
+
+function setQ(html, extra='') {
+  document.getElementById('el-question').innerHTML = html + (extra ? ' ' + extra : '');
+}
+
+function giveHint() {
+  if (hintUsed || !current || awaitNext) return;
+  hintUsed = true;
+  setStateClass(current, 'st-target');
+  document.querySelectorAll('.hint-btn').forEach(b => b.remove());
+  score = Math.max(0, score - 3);
+  updateHUD();
+}
+
+// ─────────────────────────────────────────────
+//  Capital quiz
+// ─────────────────────────────────────────────
+function buildOptions() {
+  const correct = STATE_DATA[current].capital;
+  const pool    = Object.values(STATE_DATA).map(d => d.capital).filter(c => c !== correct);
+  const opts    = shuffle([correct, ...shuffle(pool).slice(0, 3)]);
+  document.getElementById('el-options').innerHTML =
+    '<div class="options-grid">' +
+    opts.map(o =>
+      `<button class="opt-btn" onclick="checkCap(this,'${esc(o)}','${esc(correct)}')">`+
+      `&#127963; ${o}</button>`
+    ).join('') + '</div>';
+}
+function esc(s) { return s.replace(/'/g,"\\'"); }
+
+function checkCap(btn, selected, correct) {
+  if (awaitNext) return;
+  document.querySelectorAll('.opt-btn').forEach(b => b.disabled = true);
+  if (selected === correct) {
+    btn.classList.add('opt-correct');
+    correct_answer();
+  } else {
+    btn.classList.add('opt-wrong');
+    document.querySelectorAll('.opt-btn').forEach(b => {
+      if (b.textContent.includes(correct)) b.classList.add('opt-correct');
+    });
+    wrong_answer();
+  }
+  setStateClass(current, 'st-found');
+  showFact();
+  awaitNext = true;
+}
+
+// ─────────────────────────────────────────────
+//  Map click (find mode + explore)
+// ─────────────────────────────────────────────
+function onMapClick(name) {
+  if (mode === 'explore') {
+    Object.keys(STATE_DATA).forEach(n => resetStateClass(n));
+    setStateClass(name, 'st-correct');
+    if (STATE_DATA[name]) {
+      showFact(name);
+      setQ('&#128205; <span class="hl">' + name + '</span> — Capital: ' + STATE_DATA[name].capital);
+      document.getElementById('el-next').style.display = 'none';
+    }
+    return;
+  }
+  if (mode !== 'find' || awaitNext || !current) return;
+
+  if (name === current) {
+    setStateClass(name, 'st-correct');
+    correct_answer();
+    showFact();
+    awaitNext = true;
+  } else {
+    setStateClass(name, 'st-wrong');
+    setTimeout(() => resetStateClass(name), 700);
+    wrong_answer();
+    if (lives <= 0) {
+      setStateClass(current, 'st-target');
+      showFact();
+      awaitNext = true;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Scoring
+// ─────────────────────────────────────────────
+function correct_answer() {
+  sfxCorrect();
+  streak++;
+  const bonus = hintUsed ? 0 : Math.min(streak - 1, 4) * 2;
+  score += hintUsed ? 5 : 10 + bonus;
+  done.add(current);
+  updateHUD();
+  flashScreen('rgba(0,220,100,.13)');
+  if (streak > 0 && streak % 5 === 0) {
+    sfxStreak(); launchConfetti(); showStreakBadge(streak);
+  } else if (streak >= 3) {
+    launchConfetti(12);
+  }
+}
+function wrong_answer() {
+  sfxWrong();
+  streak = 0; lives--;
+  updateHUD();
+  flashScreen('rgba(220,30,30,.15)');
+  if (lives <= 0) setTimeout(endGame, 2800);
+}
+
+// ─────────────────────────────────────────────
+//  Fact display
+// ─────────────────────────────────────────────
+function showFact(name) {
+  const key = name || current;
+  const d   = STATE_DATA[key];
+  if (!d) return;
+  document.getElementById('fb-name').innerHTML   = '&#127758; ' + key;
+  document.getElementById('fb-cap').innerHTML    = '&#127963; Capital: <strong>' + d.capital + '</strong>';
+  document.getElementById('fb-fact').innerHTML   = d.fact;
+  document.getElementById('el-next').style.display = (mode === 'explore') ? 'none' : 'inline-block';
+  document.getElementById('el-fact').style.display = 'block';
+}
+
+// ─────────────────────────────────────────────
+//  HUD
+// ─────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('el-score').textContent  = score;
+  document.getElementById('el-streak').innerHTML   = streak >= 3 ? streak + ' &#128293;' : streak;
+  const h = '&#10084;'.repeat(Math.max(0,lives)) + '&#129291;'.repeat(Math.max(0,3-lives));
+  document.getElementById('el-lives').innerHTML    = h;
+  const total = Object.keys(STATE_DATA).length;
+  const n     = done.size;
+  document.getElementById('el-done').textContent   = n + '/50';
+  const pct = Math.round(n / total * 100);
+  document.getElementById('el-fill').style.width   = pct + '%';
+  document.getElementById('el-pct').textContent    = 'Progress: ' + pct + '%';
+}
+
+// ─────────────────────────────────────────────
+//  End / restart
+// ─────────────────────────────────────────────
+function endGame() {
+  let msg;
+  if      (score >= 400) msg = '&#127775; Incredible! You\'re a geography genius!';
+  else if (score >= 250) msg = '&#128293; Amazing! You really know your states!';
+  else if (score >= 100) msg = '&#128077; Great job! Keep practicing and you\'ll ace it!';
+  else                   msg = '&#128170; Nice effort! Play again to improve!';
+
+  document.getElementById('el-final').innerHTML =
+    `&#127881; Final Score: <strong>${score}</strong> points<br>
+     States completed: ${done.size} / 50<br><br>${msg}`;
+  document.getElementById('el-gameover').style.display = 'block';
+  document.getElementById('el-fact').style.display     = 'none';
+  document.getElementById('el-question').style.display = 'none';
+  launchConfetti(70); sfxStreak();
+}
+function restart() {
+  document.getElementById('el-gameover').style.display  = 'none';
+  document.getElementById('el-question').style.display  = 'flex';
+  resetGame();
+  nextQuestion();
+}
+
+// ─────────────────────────────────────────────
+//  Visual effects
+// ─────────────────────────────────────────────
+function launchConfetti(n=45) {
+  const pal = ['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#5f27cd','#00d2d3','#ff9f43','#10ac84','#01aae8'];
+  for (let i = 0; i < n; i++) {
+    setTimeout(() => {
+      const el  = document.createElement('div');
+      el.className   = 'confetti';
+      el.style.left  = (Math.random() * 100) + 'vw';
+      el.style.top   = '-30px';
+      el.style.background  = pal[Math.floor(Math.random() * pal.length)];
+      const sz = Math.random() * 10 + 6;
+      el.style.width  = sz + 'px';
+      el.style.height = sz + 'px';
+      el.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
+      el.style.animationDuration = (Math.random() * 2.5 + 1.8) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4500);
+    }, i * 40);
+  }
+}
+function flashScreen(color) {
+  const el = document.createElement('div');
+  el.className  = 'flash';
+  el.style.background = color;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 500);
+}
+function showStreakBadge(n) {
+  const el = document.createElement('div');
+  el.className = 'streak-badge';
+  el.innerHTML = '&#128293; ' + n + ' in a row!<br><span style="font-size:.65em">+' + (n * 2) + ' bonus pts!</span>';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1700);
+}
+
+// ─────────────────────────────────────────────
+//  Utilities
+// ─────────────────────────────────────────────
+function shuffle(a) {
+  const arr = [...a];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ─────────────────────────────────────────────
+//  Boot
+// ─────────────────────────────────────────────
+initMap();
+</script>
+</body>
+</html>
